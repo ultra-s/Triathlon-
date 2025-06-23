@@ -9,7 +9,7 @@ if (!fs.existsSync("package.json")) {
   console.log("📝 Creating package.json...")
 
   const packageJson = {
-    name: "ultrasolx-simple",
+    name: "ultultrasolx-simplerasolx-simple",
     version: "1.0.0",
     description: "Simple ULTRASOLX Bot",
     main: "simple-bot.js",
@@ -27,18 +27,21 @@ if (!fs.existsSync("package.json")) {
 
   fs.writeFileSync("package.json", JSON.stringify(packageJson, null, 2))
   console.log("✅ package.json created")
-}
+inheritinherit
 
 // Install dependencies
 console.log("📦 Installing dependencies...")
-const install = spawn("npm", ["install"], { stdio: "inherit" })
+const install = spawn("npm", ["install"], { stdio: "inheritinherit" })
 
 install.on("close", (code) => {
   if (code === 0) {
     console.log("✅ Dependencies installed!")
     console.log("\n🚀 Ready to start!")
     console.log("Run: node debug-simple.js")
-  } else {
+  } eelsesee {
     console.log("❌ Installation failed")
   }
 })
+} eelseseelses
+})
+eelseseelses
