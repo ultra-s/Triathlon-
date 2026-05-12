@@ -5,6 +5,9 @@ const { RedisStore } = require("wwebjs-redis");
 const { createClient } = require("redis");
 const { askOpenRouter, clearMemory } = require("./ai-service");
 const http = require("http");
+const QRCode = require("qrcode");
+
+let latestQR = null;
 
 // Initialize Redis Client
 const redisClient = createClient({
@@ -12,9 +15,39 @@ const redisClient = createClient({
 });
 
 // Simple health check server for Render
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Bot is alive\n");
+const server = http.createServer(async (req, res) => {
+    if (req.url === "/qr" && latestQR) {
+        try {
+            const qrImage = await QRCode.toDataURL(latestQR);
+            res.writeHead(200, { "Content-Type": "text/html" });
+            res.end(`
+                <html>
+                    <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
+                        <h1>Scan this QR Code</h1>
+                        <img src="${qrImage}" style="width:300px;height:300px;border:10px solid white;box-shadow:0 0 10px rgba(0,0,0,0.1);" />
+                        <p style="margin-top:20px;color:#666;">Waiting for WhatsApp link...</p>
+                        <script>setTimeout(() => location.reload(), 10000);</script>
+                    </body>
+                </html>
+            `);
+            return;
+        } catch (err) {
+            res.writeHead(500);
+            res.end("Error generating QR code");
+            return;
+        }
+    }
+
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(`
+        <html>
+            <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
+                <h1>WhatsApp AI Bot</h1>
+                <p>Status: Running</p>
+                ${latestQR ? '<a href="/qr" style="padding:10px 20px;background:#25D366;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">View QR Code</a>' : '<p style="color:#666;">Bot is ready or already linked.</p>'}
+            </body>
+        </html>
+    `);
 });
 
 const PORT = process.env.PORT || 3000;
@@ -50,7 +83,8 @@ async function startBot() {
     });
 
     client.on("qr", (qr) => {
-        console.log("Scan this QR code with your WhatsApp to log in:");
+        console.log("Scan the QR code available at the service URL to log in.");
+        latestQR = qr;
         qrcode.generate(qr, { small: true });
     });
 
@@ -60,6 +94,7 @@ async function startBot() {
 
     client.on("ready", () => {
         console.log("WhatsApp Bot is ready!");
+        latestQR = null; // Clear QR once ready
     });
 
     client.on("auth_failure", (msg) => {
