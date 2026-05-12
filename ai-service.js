@@ -51,6 +51,8 @@ async function askOpenRouter(chatId, message) {
         chatMemory[chatId].push({ role: "assistant", content: reply });
         console.log(`✅ Success with model: ${model}`);
         return reply;
+      } else {
+        console.log(`⚠️ Model ${model} returned empty response`);
       }
     } catch (error) {
       lastError = error;
