@@ -82,7 +82,8 @@ async function startBot() {
                 "--no-zygote",
                 "--single-process",
                 "--disable-gpu",
-                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "--disable-blink-features=AutomationControlled",
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
             ],
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
         }
