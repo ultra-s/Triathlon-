@@ -1,15 +1,20 @@
-# ULTRASOLX - Universal AI Telegram Bot
+# ULTRASOLX - Universal AI WhatsApp & Telegram Bot
 
-A powerful Telegram bot that integrates multiple AI providers with fallback support and image generation capabilities.
+A powerful bot that integrates multiple AI providers with fallback support and image generation capabilities.
 
-## 🚀 Features
+## 🚀 WhatsApp Bot Features
+
+- **OpenRouter Integration**: Uses high-quality models like Ring, Owl, and Laguna.
+- **Automatic Fallback**: Automatically switches models if one fails or hits rate limits.
+- **Session Persistence**: Uses Redis to store WhatsApp sessions, perfect for Render.
+- **Private Chat Only**: Responds to private messages for a personalized experience.
+
+## 🤖 Telegram Bot Features
 
 - **Multiple AI Providers**: Gemini, Groq, Together AI, OpenRouter, Pawan, Vanna
 - **Automatic Fallback**: If one provider fails, automatically tries the next
 - **Image Generation**: High-quality images using Stability AI
 - **Memory Management**: Remembers conversation context
-- **Rate Limiting**: Prevents spam and API abuse
-- **Error Recovery**: Robust error handling and recovery
 
 ## 📦 Installation
 
@@ -17,21 +22,22 @@ A powerful Telegram bot that integrates multiple AI providers with fallback supp
 
 2. **Install dependencies:**
    \`\`\`bash
-   npm install
+   npm install --legacy-peer-deps
    \`\`\`
 
 3. **Set up environment variables:**
-   - Copy `.env.example` to `.env`
-   - Fill in your API keys in the `.env` file
+   - `OPENROUTER_API_KEY`: Your OpenRouter API key.
+   - `REDIS_URL`: Your Redis connection string (e.g., from Render).
+   - `BOT_TOKEN`: (Optional) For Telegram bot.
 
-4. **Test your API keys:**
+4. **Start the WhatsApp bot:**
    \`\`\`bash
-   npm run test
+   npm run whatsapp
    \`\`\`
 
-5. **Start the bot:**
+5. **Start the Telegram bot:**
    \`\`\`bash
-   npm start
+   npm run telegram
    \`\`\`
 
 ## 🔧 Configuration
