@@ -67,7 +67,12 @@ async function startBot() {
             store: store,
             backupSyncIntervalMs: 60000
         }),
+        webVersionCache: {
+            type: "remote",
+            remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html",
+        },
         puppeteer: {
+            headless: true,
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -76,7 +81,8 @@ async function startBot() {
                 "--no-first-run",
                 "--no-zygote",
                 "--single-process",
-                "--disable-gpu"
+                "--disable-gpu",
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             ],
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
         }
@@ -97,8 +103,16 @@ async function startBot() {
         latestQR = null; // Clear QR once ready
     });
 
+    client.on("authenticated", () => {
+        console.log("AUTHENTICATED");
+    });
+
     client.on("auth_failure", (msg) => {
         console.error("Authentication failure:", msg);
+    });
+
+    client.on("disconnected", (reason) => {
+        console.log("Client was logged out", reason);
     });
 
     client.on("message", async (msg) => {
