@@ -4,10 +4,22 @@ const qrcode = require("qrcode-terminal");
 const { RedisStore } = require("wwebjs-redis");
 const { createClient } = require("redis");
 const { askOpenRouter, clearMemory } = require("./ai-service");
+const http = require("http");
 
 // Initialize Redis Client
 const redisClient = createClient({
     url: process.env.REDIS_URL || "redis://localhost:6379"
+});
+
+// Simple health check server for Render
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Bot is alive\n");
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Health check server running on port ${PORT}`);
 });
 
 async function startBot() {
@@ -15,7 +27,7 @@ async function startBot() {
     await redisClient.connect();
     console.log("Connected to Redis.");
 
-    const store = new RedisStore({ client: redisClient });
+    const store = new RedisStore({ redis: redisClient });
 
     const client = new Client({
         authStrategy: new RemoteAuth({
@@ -30,7 +42,7 @@ async function startBot() {
                 "--disable-accelerated-2d-canvas",
                 "--no-first-run",
                 "--no-zygote",
-                "--single-process", // <- this one doesn't works in Windows
+                "--single-process",
                 "--disable-gpu"
             ],
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null

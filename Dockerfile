@@ -31,7 +31,7 @@ USER ultrasolx
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# Expose port (optional, for health checks)
+# Expose port (health check server)
 EXPOSE 3000
 
 # Health check
