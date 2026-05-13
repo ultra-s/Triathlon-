@@ -6,6 +6,8 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false,
   },
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000,
 });
 
 async function initDb() {
@@ -29,6 +31,11 @@ async function initDb() {
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Add index for performance
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_chat_id ON chat_history (chat_id)
     `);
 
     console.log("✅ Database initialized successfully.");

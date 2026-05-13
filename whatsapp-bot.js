@@ -61,9 +61,9 @@ async function startBot() {
 
     const client = new Client({
         authStrategy: new RemoteAuth({
-            clientId: "whatsapp-ai-bot-v2",
+            clientId: "whatsapp-ai-bot-v3", // New ID to avoid conflict with corrupted sessions
             store: store,
-            backupSyncIntervalMs: 60000
+            backupSyncIntervalMs: 120000 // Longer interval for stability
         }),
         webVersionCache: {
             type: "remote",
@@ -82,7 +82,7 @@ async function startBot() {
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
                 "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                "--js-flags=\"--max-old-space-size=256\""
+                "--js-flags=--max-old-space-size=300"
             ],
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
         }
