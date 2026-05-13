@@ -66,7 +66,7 @@ async function startBot() {
         authStrategy: new RemoteAuth({
             clientId: "whatsapp-ai-bot",
             store: store,
-            backupSyncIntervalMs: 60000
+            backupSyncIntervalMs: 30000 // Sync every 30 seconds
         }),
         webVersionCache: {
             type: "remote",
@@ -84,7 +84,8 @@ async function startBot() {
                 "--single-process",
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
-                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "--js-flags=\"--max-old-space-size=256\"" // Limit memory usage
             ],
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
         }
@@ -97,16 +98,16 @@ async function startBot() {
     });
 
     client.on("remote_session_saved", () => {
-        console.log("Session saved to Redis!");
+        console.log("✅ SUCCESS: Session saved to Redis!");
     });
 
     client.on("ready", () => {
-        console.log("WhatsApp Bot is ready!");
+        console.log("🚀 SUCCESS: WhatsApp Bot is ready!");
         latestQR = null; // Clear QR once ready
     });
 
     client.on("authenticated", () => {
-        console.log("AUTHENTICATED");
+        console.log("🔑 AUTHENTICATED: WhatsApp linked successfully.");
     });
 
     client.on("auth_failure", (msg) => {
@@ -147,6 +148,15 @@ async function startBot() {
     client.initialize();
 }
 
+// Global error handling for unhandled promises
+process.on("unhandledRejection", (reason, promise) => {
+    console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+    console.error("❌ Uncaught Exception:", error);
+});
+
 startBot().catch(err => {
-    console.error("Failed to start bot:", err);
+    console.error("❌ Failed to start bot:", err);
 });
