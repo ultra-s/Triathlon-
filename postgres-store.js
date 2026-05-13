@@ -2,32 +2,39 @@ const { pool } = require("./db");
 const fs = require("fs-extra");
 const path = require("path");
 
+/**
+ * Balanced Postgres Store for RemoteAuth
+ * Handles binary session data with explicit directory management.
+ */
 class PostgresStore {
   constructor({ clientId } = {}) {
     this.clientId = clientId || "default";
+    this.dataPath = path.resolve("./.wwebjs_auth/");
   }
 
   async sessionExists({ session }) {
-    console.log(`🔍 Checking if session exists for client: ${this.clientId}`);
-    const res = await pool.query(
-      "SELECT 1 FROM whatsapp_sessions WHERE client_id = $1",
-      [this.clientId]
-    );
-    const exists = res.rowCount > 0;
-    console.log(`🔍 Session exists: ${exists}`);
-    return exists;
+    try {
+      console.log(`[Store] Checking session: ${this.clientId}`);
+      const res = await pool.query(
+        "SELECT 1 FROM whatsapp_sessions WHERE client_id = $1",
+        [this.clientId]
+      );
+      return res.rowCount > 0;
+    } catch (err) {
+      console.error(`[Store] sessionExists error:`, err.message);
+      return false;
+    }
   }
 
   async save({ session }) {
     try {
-      console.log(`💾 Attempting to save session for client: ${this.clientId}...`);
-      const sessionPath = path.resolve("./.wwebjs_auth/", `${session}.zip`);
+      console.log(`[Store] Saving session: ${this.clientId}...`);
+      const sessionPath = path.join(this.dataPath, `${session}.zip`);
 
-      // Ensure the data directory exists before zipping might happen
-      await fs.ensureDir("./.wwebjs_auth/");
+      await fs.ensureDir(this.dataPath);
 
       if (!(await fs.pathExists(sessionPath))) {
-        console.error(`❌ Session file NOT FOUND at: ${sessionPath}`);
+        console.warn(`[Store] Session file missing during save: ${sessionPath}`);
         return;
       }
 
@@ -39,41 +46,41 @@ class PostgresStore {
          ON CONFLICT (client_id) DO UPDATE SET session_data = $2, updated_at = CURRENT_TIMESTAMP`,
         [this.clientId, sessionData]
       );
-      console.log(`✅ SUCCESS: Session binary saved to PostgreSQL for client: ${this.clientId}`);
+      console.log(`[Store] Session saved to DB.`);
     } catch (err) {
-      console.error(`❌ FAILED to save session for client: ${this.clientId}:`, err);
+      console.error(`[Store] save error:`, err.message);
     }
   }
 
   async extract({ session, path: targetPath }) {
     try {
-      console.log(`📂 Attempting to extract session for client: ${this.clientId}...`);
+      console.log(`[Store] Extracting session: ${this.clientId}...`);
       const res = await pool.query(
         "SELECT session_data FROM whatsapp_sessions WHERE client_id = $1",
         [this.clientId]
       );
-      if (res.rowCount > 0) {
-        // Ensure the directory exists before writing the zip
-        await fs.ensureDir(path.dirname(targetPath));
 
+      if (res.rowCount > 0) {
+        await fs.ensureDir(path.dirname(targetPath));
         await fs.writeFile(targetPath, res.rows[0].session_data);
-        console.log(`📂 SUCCESS: Session binary extracted from PostgreSQL to: ${targetPath}`);
+        console.log(`[Store] Session data written to: ${targetPath}`);
         return true;
       }
-      console.log(`⚠️ No session found in DB for client: ${this.clientId}`);
+      console.log(`[Store] No session found for: ${this.clientId}`);
       return false;
     } catch (err) {
-      console.error(`❌ FAILED to extract session for client: ${this.clientId}:`, err);
-      // Don't throw here, returning false tells RemoteAuth to start fresh
+      console.error(`[Store] extract error:`, err.message);
       return false;
     }
   }
 
   async delete({ session }) {
-    await pool.query("DELETE FROM whatsapp_sessions WHERE client_id = $1", [
-      this.clientId,
-    ]);
-    console.log(`❌ Session deleted from PostgreSQL for client: ${this.clientId}`);
+    try {
+      await pool.query("DELETE FROM whatsapp_sessions WHERE client_id = $1", [this.clientId]);
+      console.log(`[Store] Session deleted for: ${this.clientId}`);
+    } catch (err) {
+      console.error(`[Store] delete error:`, err.message);
+    }
   }
 }
 

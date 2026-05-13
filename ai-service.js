@@ -9,19 +9,22 @@ const MODELS = [
   "baidu/cobuddy:free"
 ];
 
+/**
+ * Optimized AI Service with PostgreSQL history
+ */
 async function getChatHistory(chatId) {
   const res = await pool.query(
-    "SELECT role, content FROM chat_history WHERE chat_id = $1 ORDER BY created_at ASC LIMIT 15",
+    "SELECT role, content FROM chat_history WHERE chat_id = $1 ORDER BY created_at ASC LIMIT 10",
     [chatId]
   );
   return res.rows;
 }
 
 async function saveChatMessage(chatId, role, content) {
-  await pool.query(
+  pool.query(
     "INSERT INTO chat_history (chat_id, role, content) VALUES ($1, $2, $3)",
     [chatId, role, content]
-  );
+  ).catch(err => console.error("[AI] History save failed:", err.message));
 }
 
 async function clearMemory(chatId) {
@@ -31,24 +34,22 @@ async function clearMemory(chatId) {
 
 async function askOpenRouter(chatId, message) {
   try {
-    // 1. Save user message
-    await saveChatMessage(chatId, "user", message);
+    // 1. Save user message (fire and forget for speed)
+    saveChatMessage(chatId, "user", message);
 
-    // 2. Retrieve history (optimized query)
+    // 2. Get context
     const history = await getChatHistory(chatId);
+    history.push({ role: "user", content: message });
 
     let lastError = null;
 
     for (const model of MODELS) {
       try {
-        console.log(`🔄 Trying model: ${model}`);
+        console.log(`[AI] Trying ${model}...`);
 
         const response = await axios.post(
           "https://openrouter.ai/api/v1/chat/completions",
-          {
-            model: model,
-            messages: history,
-          },
+          { model, messages: history },
           {
             headers: {
               "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -56,41 +57,31 @@ async function askOpenRouter(chatId, message) {
               "X-Title": "WhatsApp AI Bot",
               "Content-Type": "application/json"
             },
-            timeout: 20000 // Reduced timeout for faster switching
+            timeout: 15000 // Faster timeout
           }
         );
 
         const reply = response.data.choices?.[0]?.message?.content;
 
         if (reply && reply.trim()) {
-          // 3. Save assistant reply
-          await saveChatMessage(chatId, "assistant", reply);
-          console.log(`✅ Success with model: ${model}`);
+          saveChatMessage(chatId, "assistant", reply);
+          console.log(`[AI] Success: ${model}`);
           return reply;
-        } else {
-          console.log(`⚠️ Model ${model} returned empty response`);
         }
       } catch (error) {
         lastError = error;
         const status = error.response?.status;
-        const errorMsg = error.response?.data?.error?.message || error.message;
-        console.log(`❌ Model ${model} failed: ${status} - ${errorMsg}`);
-
-        if (status === 401) {
-          return "⚠️ OpenRouter API key is invalid or missing.";
-        }
+        console.log(`[AI] ${model} failed (${status || error.message})`);
+        if (status === 401) return "⚠️ API Key error.";
         continue;
       }
     }
 
-    return `❌ All models failed. Last error: ${lastError?.message || "Unknown error"}`;
-  } catch (dbError) {
-    console.error("❌ Database or Logic Error:", dbError);
-    return "⚠️ Encountered a system error. Please try again.";
+    return `❌ Failed to generate response. (${lastError?.message || "Unknown error"})`;
+  } catch (err) {
+    console.error("[AI] Service Error:", err.message);
+    return "⚠️ System error. Please try again.";
   }
 }
 
-module.exports = {
-  askOpenRouter,
-  clearMemory
-};
+module.exports = { askOpenRouter, clearMemory };
