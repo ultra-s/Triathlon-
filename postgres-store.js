@@ -22,6 +22,15 @@ class PostgresStore {
     try {
       console.log(`💾 Attempting to save session for client: ${this.clientId}...`);
       const sessionPath = path.resolve("./.wwebjs_auth/", `${session}.zip`);
+
+      // Ensure the data directory exists before zipping might happen
+      await fs.ensureDir("./.wwebjs_auth/");
+
+      if (!(await fs.pathExists(sessionPath))) {
+        console.error(`❌ Session file NOT FOUND at: ${sessionPath}`);
+        return;
+      }
+
       const sessionData = await fs.readFile(sessionPath);
 
       await pool.query(
@@ -44,6 +53,9 @@ class PostgresStore {
         [this.clientId]
       );
       if (res.rowCount > 0) {
+        // Ensure the directory exists before writing the zip
+        await fs.ensureDir(path.dirname(targetPath));
+
         await fs.writeFile(targetPath, res.rows[0].session_data);
         console.log(`📂 SUCCESS: Session binary extracted from PostgreSQL to: ${targetPath}`);
         return true;
@@ -52,6 +64,7 @@ class PostgresStore {
       return false;
     } catch (err) {
       console.error(`❌ FAILED to extract session for client: ${this.clientId}:`, err);
+      // Don't throw here, returning false tells RemoteAuth to start fresh
       return false;
     }
   }

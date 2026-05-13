@@ -57,13 +57,13 @@ async function startBot() {
     await initDb();
     console.log("Database Ready.");
 
-    const store = new PostgresStore({ clientId: "whatsapp-ai-bot-v2" });
+    const store = new PostgresStore({ clientId: "whatsapp-ai-bot-final-v1" });
 
     const client = new Client({
         authStrategy: new RemoteAuth({
-            clientId: "whatsapp-ai-bot-v3", // New ID to avoid conflict with corrupted sessions
+            clientId: "whatsapp-ai-bot-final-v1",
             store: store,
-            backupSyncIntervalMs: 120000 // Longer interval for stability
+            backupSyncIntervalMs: 120000
         }),
         webVersionCache: {
             type: "remote",
@@ -128,6 +128,9 @@ async function startBot() {
 
     client.on("message", async (msg) => {
         try {
+            // Ignore status updates and other system numbers
+            if (msg.from === "status@broadcast" || !msg.body) return;
+
             const chat = await msg.getChat();
             if (chat.isGroup) return;
 
