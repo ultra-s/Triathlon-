@@ -1,21 +1,14 @@
 require("dotenv").config();
 const { Client, RemoteAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
-const { RedisStore } = require("wwebjs-redis");
-const { createClient } = require("redis");
+const { initDb } = require("./db");
+const PostgresStore = require("./postgres-store");
 const { askOpenRouter, clearMemory } = require("./ai-service");
 const http = require("http");
 const QRCode = require("qrcode");
 
 let latestQR = null;
 let botStatus = "Initializing...";
-
-// Initialize Redis Client
-const redisClient = createClient({
-    url: process.env.REDIS_URL || "redis://localhost:6379"
-});
-
-redisClient.on("error", (err) => console.error("Redis Client Error", err));
 
 // Simple health check server for Render
 const server = http.createServer(async (req, res) => {
@@ -45,10 +38,10 @@ const server = http.createServer(async (req, res) => {
     res.end(`
         <html>
             <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
-                <h1>WhatsApp AI Bot</h1>
+                <h1>WhatsApp AI Bot (Neon Edition)</h1>
                 <p>Status: <strong>${botStatus}</strong></p>
                 ${latestQR ? '<a href="/qr" style="padding:10px 20px;background:#25D366;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">View QR Code</a>' : '<p style="color:#666;">Bot is ready or already linked.</p>'}
-                <p style="margin-top:50px; font-size:12px; color:#999;">Last deployed: ${new Date().toISOString()}</p>
+                <p style="margin-top:50px; font-size:12px; color:#999;">Stable Persistence: PostgreSQL (Neon)</p>
             </body>
         </html>
     `);
@@ -60,17 +53,17 @@ server.listen(PORT, () => {
 });
 
 async function startBot() {
-    console.log("Connecting to Redis...");
-    await redisClient.connect();
-    console.log("Connected to Redis.");
+    console.log("Initializing Database...");
+    await initDb();
+    console.log("Database Ready.");
 
-    const store = new RedisStore({ redis: redisClient });
+    const store = new PostgresStore({ clientId: "whatsapp-ai-bot-v2" });
 
     const client = new Client({
         authStrategy: new RemoteAuth({
-            clientId: "whatsapp-ai-bot-v1",
+            clientId: "whatsapp-ai-bot-v2",
             store: store,
-            backupSyncIntervalMs: 60000 // Must be >= 60000
+            backupSyncIntervalMs: 60000
         }),
         webVersionCache: {
             type: "remote",
@@ -108,7 +101,7 @@ async function startBot() {
     });
 
     client.on("remote_session_saved", () => {
-        console.log("✅ SUCCESS: Session saved to Redis!");
+        console.log("✅ SUCCESS: Session saved to PostgreSQL (Neon)!");
     });
 
     client.on("ready", () => {
@@ -130,36 +123,28 @@ async function startBot() {
     client.on("disconnected", (reason) => {
         console.log("❌ Client was logged out", reason);
         botStatus = "Disconnected.";
+        latestQR = null;
     });
 
     client.on("message", async (msg) => {
         try {
-            // Only respond in private chats
             const chat = await msg.getChat();
             if (chat.isGroup) return;
 
-            console.log(`📩 Message received from ${msg.from}: ${msg.body.substring(0, 50)}...`);
+            console.log(`📩 Message from ${msg.from}: ${msg.body.substring(0, 50)}...`);
 
-            const body = msg.body.toLowerCase();
-
-            if (body === "/clear") {
-                clearMemory(msg.from);
-                await msg.reply("🧹 Chat memory cleared!");
+            if (msg.body.toLowerCase() === "/clear") {
+                await clearMemory(msg.from);
+                await msg.reply("🧹 Chat memory cleared in Neon database!");
                 return;
             }
 
             await chat.sendStateTyping();
-
             const reply = await askOpenRouter(msg.from, msg.body);
             await msg.reply(reply);
             console.log(`📤 Replied to ${msg.from}`);
         } catch (error) {
-            console.error("❌ Error processing message:", error);
-            try {
-                await msg.reply("⚠️ Sorry, I encountered an error processing your request.");
-            } catch (replyError) {
-                console.error("❌ Failed to send error reply:", replyError.message);
-            }
+            console.error("❌ Error in message handler:", error);
         }
     });
 
@@ -167,7 +152,6 @@ async function startBot() {
     client.initialize();
 }
 
-// Global error handling
 process.on("unhandledRejection", (reason, promise) => {
     console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
 });
