@@ -47,11 +47,11 @@ async function startBot() {
         authStrategy: new RemoteAuth({
             clientId: "ultrasolx-primary-v1",
             store: store,
-            backupSyncIntervalMs: 60000 // Every 1 min to ensure session is saved quickly
+            backupSyncIntervalMs: 120000 // Every 2 mins to balance safety and performance
         }),
         webVersionCache: {
             type: "remote",
-            remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014580281-alpha.html",
+            remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html",
         },
         puppeteer: {
             headless: true,
@@ -63,6 +63,7 @@ async function startBot() {
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
                 "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "--js-flags=\"--max-old-space-size=300\"",
             ],
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
         }
@@ -76,26 +77,27 @@ async function startBot() {
     });
 
     client.on("authenticated", () => {
-        console.log("[Bot] Authenticated.");
+        console.log("[Bot] EVENT: Authenticated.");
         botStatus = "Authenticated. Loading...";
     });
 
     client.on("ready", () => {
-        console.log("[Bot] SUCCESS: Ready!");
+        console.log("[Bot] EVENT: SUCCESS - Bot is Ready!");
         botStatus = "Online";
         clientReady = true;
         latestQR = null;
     });
 
     client.on("auth_failure", (msg) => {
-        console.error("[Bot] Auth Failure:", msg);
+        console.error("[Bot] EVENT: Auth Failure:", msg);
         botStatus = "Auth Failed";
     });
 
     client.on("disconnected", (reason) => {
-        console.log("[Bot] Disconnected:", reason);
+        console.log("[Bot] EVENT: Disconnected:", reason);
         botStatus = "Disconnected";
         clientReady = false;
+        // Optionally restart or notify
     });
 
     client.on("message", async (msg) => {

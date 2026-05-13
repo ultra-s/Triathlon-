@@ -14,12 +14,14 @@ class PostgresStore {
 
   async sessionExists({ session }) {
     try {
-      console.log(`[Store] Checking session: ${this.clientId}`);
+      console.log(`[Store] Checking session in DB for clientId: ${this.clientId}`);
       const res = await pool.query(
         "SELECT 1 FROM whatsapp_sessions WHERE client_id = $1",
         [this.clientId]
       );
-      return res.rowCount > 0;
+      const exists = res.rowCount > 0;
+      console.log(`[Store] Session exists in DB: ${exists}`);
+      return exists;
     } catch (err) {
       console.error(`[Store] sessionExists error:`, err.message);
       return false;
@@ -28,17 +30,24 @@ class PostgresStore {
 
   async save({ session }) {
     try {
-      console.log(`[Store] Saving session: ${this.clientId}...`);
+      console.log(`[Store] Saving session to DB: ${this.clientId} (zip name: ${session})`);
       const sessionPath = path.join(this.dataPath, `${session}.zip`);
 
       await fs.ensureDir(this.dataPath);
 
+      // Wait a bit for filesystem to sync if needed
       if (!(await fs.pathExists(sessionPath))) {
-        console.warn(`[Store] Session file missing during save: ${sessionPath}`);
+        console.log(`[Store] Waiting for session file...`);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
+      if (!(await fs.pathExists(sessionPath))) {
+        console.error(`[Store] CRITICAL: Session file NOT FOUND at ${sessionPath}`);
         return;
       }
 
       const sessionData = await fs.readFile(sessionPath);
+      console.log(`[Store] Read ${sessionData.length} bytes from zip.`);
 
       await pool.query(
         `INSERT INTO whatsapp_sessions (client_id, session_data, updated_at)
@@ -46,7 +55,7 @@ class PostgresStore {
          ON CONFLICT (client_id) DO UPDATE SET session_data = $2, updated_at = CURRENT_TIMESTAMP`,
         [this.clientId, sessionData]
       );
-      console.log(`[Store] Session saved to DB.`);
+      console.log(`[Store] SUCCESS: Session blob saved to PostgreSQL.`);
     } catch (err) {
       console.error(`[Store] save error:`, err.message);
     }
