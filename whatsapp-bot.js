@@ -24,11 +24,12 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
-    res.writeHead(200, { "Content-Type": "text/html" });
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(`<html><body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
-        <h1>WhatsApp Bot Status</h1>
+        <h1>Mozosubz Support Bot</h1>
         <p>Status: <strong>${botStatus}</strong></p>
-        ${latestQR ? '<a href="/qr" style="padding:10px 20px;background:#25D366;color:white;text-decoration:none;border-radius:5px;">Scan QR</a>' : (clientReady ? '<p style="color:green;">✅ Bot is Active</p>' : '<p>Initializing session...</p>')}
+        ${latestQR ? '<a href="/qr" style="padding:10px 20px;background:#25D366;color:white;text-decoration:none;border-radius:5px;">Scan QR</a>' : (clientReady ? '<p style="color:green;">✅ Support Bot is Online</p>' : '<p>Initializing session...</p>')}
+        <p style="margin-top:20px; font-size:12px; color:#666;">Powered by OpenRouter & Neon DB</p>
     </body></html>`);
 });
 
@@ -46,7 +47,7 @@ async function startBot() {
         authStrategy: new RemoteAuth({
             clientId: "ultrasolx-primary-v1",
             store: store,
-            backupSyncIntervalMs: 300000 // Every 5 mins for stability
+            backupSyncIntervalMs: 60000 // Every 1 min to ensure session is saved quickly
         }),
         webVersionCache: {
             type: "remote",
@@ -100,16 +101,32 @@ async function startBot() {
     client.on("message", async (msg) => {
         try {
             if (msg.from === "status@broadcast" || !msg.body) return;
+
+            // Simple debug command
+            if (msg.body.toLowerCase() === "bot status") {
+                return msg.reply(`🤖 Mozosubz Support Bot is Online.\n\nStatus: ${botStatus}\nReady: ${clientReady}`);
+            }
+
             const chat = await msg.getChat();
             if (chat.isGroup) return;
 
-            console.log(`[Msg] From: ${msg.from}`);
+            console.log(`[Msg] From: ${msg.from} - ${msg.body.substring(0, 20)}...`);
             await chat.sendStateTyping();
 
-            const reply = await askOpenRouter(msg.from, msg.body);
-            await msg.reply(reply);
+            // Extract clean phone number (remove @c.us etc)
+            const userPhone = msg.from.split("@")[0];
+
+            const reply = await askOpenRouter(msg.from, msg.body, userPhone);
+
+            if (reply) {
+                await msg.reply(reply);
+            }
         } catch (err) {
             console.error("[Bot] Msg Error:", err.message);
+            // Optionally notify the user
+            if (err.message.includes("OpenRouter")) {
+                await msg.reply("⚠️ AI Service is temporarily unavailable. Please try again in a moment.");
+            }
         }
     });
 
