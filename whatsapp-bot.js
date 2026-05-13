@@ -8,11 +8,14 @@ const http = require("http");
 const QRCode = require("qrcode");
 
 let latestQR = null;
+let botStatus = "Initializing...";
 
 // Initialize Redis Client
 const redisClient = createClient({
     url: process.env.REDIS_URL || "redis://localhost:6379"
 });
+
+redisClient.on("error", (err) => console.error("Redis Client Error", err));
 
 // Simple health check server for Render
 const server = http.createServer(async (req, res) => {
@@ -25,7 +28,7 @@ const server = http.createServer(async (req, res) => {
                     <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
                         <h1>Scan this QR Code</h1>
                         <img src="${qrImage}" style="width:300px;height:300px;border:10px solid white;box-shadow:0 0 10px rgba(0,0,0,0.1);" />
-                        <p style="margin-top:20px;color:#666;">Waiting for WhatsApp link...</p>
+                        <p style="margin-top:20px;color:#666;">Waiting for WhatsApp link... (Refreshes automatically)</p>
                         <script>setTimeout(() => location.reload(), 10000);</script>
                     </body>
                 </html>
@@ -43,8 +46,9 @@ const server = http.createServer(async (req, res) => {
         <html>
             <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
                 <h1>WhatsApp AI Bot</h1>
-                <p>Status: Running</p>
+                <p>Status: <strong>${botStatus}</strong></p>
                 ${latestQR ? '<a href="/qr" style="padding:10px 20px;background:#25D366;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">View QR Code</a>' : '<p style="color:#666;">Bot is ready or already linked.</p>'}
+                <p style="margin-top:50px; font-size:12px; color:#999;">Last deployed: ${new Date().toISOString()}</p>
             </body>
         </html>
     `);
@@ -64,9 +68,9 @@ async function startBot() {
 
     const client = new Client({
         authStrategy: new RemoteAuth({
-            clientId: "whatsapp-ai-bot",
+            clientId: "whatsapp-ai-bot-v1",
             store: store,
-            backupSyncIntervalMs: 30000 // Sync every 30 seconds
+            backupSyncIntervalMs: 60000 // Must be >= 60000
         }),
         webVersionCache: {
             type: "remote",
@@ -85,7 +89,7 @@ async function startBot() {
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
                 "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                "--js-flags=\"--max-old-space-size=256\"" // Limit memory usage
+                "--js-flags=\"--max-old-space-size=256\""
             ],
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null
         }
@@ -94,7 +98,13 @@ async function startBot() {
     client.on("qr", (qr) => {
         console.log("Scan the QR code available at the service URL to log in.");
         latestQR = qr;
+        botStatus = "Waiting for QR scan...";
         qrcode.generate(qr, { small: true });
+    });
+
+    client.on("loading_screen", (percent, message) => {
+        console.log("LOADING SCREEN", percent, message);
+        botStatus = `Loading... ${percent}%`;
     });
 
     client.on("remote_session_saved", () => {
@@ -103,44 +113,53 @@ async function startBot() {
 
     client.on("ready", () => {
         console.log("🚀 SUCCESS: WhatsApp Bot is ready!");
-        latestQR = null; // Clear QR once ready
+        botStatus = "Bot is Online and Ready";
+        latestQR = null;
     });
 
     client.on("authenticated", () => {
         console.log("🔑 AUTHENTICATED: WhatsApp linked successfully.");
+        botStatus = "Authenticated. Starting...";
     });
 
     client.on("auth_failure", (msg) => {
-        console.error("Authentication failure:", msg);
+        console.error("❌ Authentication failure:", msg);
+        botStatus = "Authentication failed.";
     });
 
     client.on("disconnected", (reason) => {
-        console.log("Client was logged out", reason);
+        console.log("❌ Client was logged out", reason);
+        botStatus = "Disconnected.";
     });
 
     client.on("message", async (msg) => {
-        // Only respond in private chats (not groups)
-        const chat = await msg.getChat();
-        if (chat.isGroup) return;
-
-        const body = msg.body.toLowerCase();
-
-        // Optional: clear memory command
-        if (body === "/clear") {
-            clearMemory(msg.from);
-            await msg.reply("🧹 Chat memory cleared!");
-            return;
-        }
-
-        // Send typing indicator
-        await chat.sendStateTyping();
-
         try {
+            // Only respond in private chats
+            const chat = await msg.getChat();
+            if (chat.isGroup) return;
+
+            console.log(`📩 Message received from ${msg.from}: ${msg.body.substring(0, 50)}...`);
+
+            const body = msg.body.toLowerCase();
+
+            if (body === "/clear") {
+                clearMemory(msg.from);
+                await msg.reply("🧹 Chat memory cleared!");
+                return;
+            }
+
+            await chat.sendStateTyping();
+
             const reply = await askOpenRouter(msg.from, msg.body);
             await msg.reply(reply);
+            console.log(`📤 Replied to ${msg.from}`);
         } catch (error) {
-            console.error("Error processing message:", error);
-            await msg.reply("⚠️ Sorry, I encountered an error processing your request.");
+            console.error("❌ Error processing message:", error);
+            try {
+                await msg.reply("⚠️ Sorry, I encountered an error processing your request.");
+            } catch (replyError) {
+                console.error("❌ Failed to send error reply:", replyError.message);
+            }
         }
     });
 
@@ -148,7 +167,7 @@ async function startBot() {
     client.initialize();
 }
 
-// Global error handling for unhandled promises
+// Global error handling
 process.on("unhandledRejection", (reason, promise) => {
     console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
 });
@@ -159,4 +178,5 @@ process.on("uncaughtException", (error) => {
 
 startBot().catch(err => {
     console.error("❌ Failed to start bot:", err);
+    process.exit(1);
 });
